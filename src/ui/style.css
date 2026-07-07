@@ -46,6 +46,33 @@ body {
 .panel.active { display: grid; }
 .panel.io, .panel.mutate { grid-template-columns: 1fr; }
 
+/* PLAY (perform) + INFO tabs */
+.perform-transport { grid-column: 1 / -1; display: flex; gap: 8px; }
+.btn.big { padding: 12px; font-size: 14px; letter-spacing: 1px; }
+.perform-transport .btn.big { flex: 1; }
+.ctl.big .knob { height: 14px; }
+.ctl.big label { font-size: 12px; }
+.perform-gate { grid-column: 1 / -1; display: flex; gap: 6px; }
+.perform-gate .btn { flex: 1; }
+.perform-gate .btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.perform-presets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.perform-presets .btn { flex: 1 1 28%; }
+.xywrap { grid-column: 1 / -1; }
+.xypad { position: relative; width: 100%; aspect-ratio: 2 / 1; background: #0c0f13;
+  border: 1px solid var(--line); border-radius: 6px; cursor: crosshair; touch-action: none;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 25% 25%, 25% 25%; }
+.xydot { position: absolute; width: 14px; height: 14px; margin: -7px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 10px var(--accent); pointer-events: none; }
+.perform .ctl label .v { font-size: 9px; color: var(--dim); }
+.panel.info.active { display: block; overflow-y: auto; }
+.info h4 { margin: 12px 0 6px; color: var(--accent); }
+.info h4:first-child { margin-top: 0; }
+.info .concept { color: var(--txt); font-size: 11px; line-height: 1.7; white-space: pre-wrap; margin-bottom: 8px; }
+.info .inforow { display: grid; grid-template-columns: 130px 1fr; gap: 8px; padding: 3px 0; border-bottom: 1px solid #14171c; }
+.info .in-name { color: var(--accent); }
+.info .in-desc { color: var(--dim); }
+
 .right { background: var(--panel); border-left: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 14px; }
 .right h4 { color: var(--dim); font-weight: normal; font-size: 10px; letter-spacing: 1px; margin-bottom: 4px; }
 

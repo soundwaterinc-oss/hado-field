@@ -1,5 +1,5 @@
 // params.ts — single source of truth for all parameters (drives UI, preset, TD send)
-export type ParamTab = "GEO" | "FIELD" | "SOUND" | "SEQ" | "MUTATE" | "IO";
+export type ParamTab = "PERFORM" | "GEO" | "FIELD" | "SOUND" | "SEQ" | "MUTATE" | "IO" | "INFO";
 
 export interface NumberParam {
   kind: "number";
@@ -37,6 +37,9 @@ const b = (tab: ParamTab, label: string, def: boolean): BoolParam =>
   ({ kind: "bool", tab, label, def });
 
 export const PARAMS = {
+  // ── PERFORM ──────────────────────────────────────────────────────────
+  masterGain: n("PERFORM", "master gain", 0, 1.5, 0.9, 0.01),
+
   // ── GEO ──────────────────────────────────────────────────────────────
   geoMode: e("GEO", "geo mode", ["PHYLLO", "LSYS", "VORO", "HYBRID"], "PHYLLO"),
   geoModeA: e("GEO", "hybrid A", ["PHYLLO", "LSYS", "VORO"], "PHYLLO"),

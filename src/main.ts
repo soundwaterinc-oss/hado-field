@@ -102,6 +102,7 @@ const hooks: UIHooks = {
   },
   onReset: () => { field.reset(state); spectrum.snapshot(field); },
   onToggleSeq: () => clock.toggle(),
+  onTogglePlay: () => { void audio.resume(); clock.toggle(); ui.setPlaying(clock.running); },
   presetSave: (n) => saveUserPreset(n, state),
   presetLoad: (n) => {
     const all = [...BUILTIN_PRESETS, ...loadUserPresets()];
@@ -152,7 +153,7 @@ window.addEventListener("keydown", kickAudio, { once: true });
 
 // keyboard
 window.addEventListener("keydown", (e) => {
-  if (e.code === "Space") { e.preventDefault(); clock.toggle(); }
+  if (e.code === "Space") { e.preventDefault(); clock.toggle(); ui.setPlaying(clock.running); }
   else if (e.key === "r" || e.key === "R") { field.reset(state); spectrum.snapshot(field); }
   else if (e.key === "f" || e.key === "F") { state.freeze = !(state.freeze as boolean); ui.refreshAll(); }
 });

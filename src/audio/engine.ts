@@ -62,6 +62,7 @@ export class AudioEngine {
   // per-frame parameter + feature push
   update(dt: number, features: HadoFeatures, p: ParamState, nowMs: number): void {
     if (!this.started) return;
+    this.master.gain.setTargetAtTime(p.masterGain as number, this.ctx.currentTime, 0.02);
     this.fx.update(p);
     this.sendMacro.gain.value = p.fxSendMacro as number;
     this.sendMid.gain.value = p.fxSendMid as number;

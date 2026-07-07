@@ -3,10 +3,12 @@
 import { PARAMS, type ParamName, type ParamState, type ParamTab } from "../core/params";
 import { makeControl } from "./knob";
 import type { MeasureClock } from "../core/clock";
-import { t, getLang, toggleLang } from "../core/i18n";
+import { t, getLang, toggleLang, paramLabel, paramDesc } from "../core/i18n";
 
-const TABS: ParamTab[] = ["GEO", "FIELD", "SOUND", "SEQ", "MUTATE", "IO"];
+const TABS: ParamTab[] = ["PERFORM", "GEO", "FIELD", "SOUND", "SEQ", "MUTATE", "IO", "INFO"];
+const PARAM_TABS: ParamTab[] = ["GEO", "FIELD", "SOUND", "SEQ", "MUTATE", "IO"];
 const MACROS: ParamName[] = ["droneLevel", "feedAmount", "collapseSharpness", "reverbMix"];
+const PERFORM_MACROS: ParamName[] = ["droneLevel", "collapseSharpness", "feedAmount", "reverbMix", "fRoot", "warp"];
 
 export interface UIHooks {
   onParamChange: (name: ParamName) => void;
@@ -14,6 +16,7 @@ export interface UIHooks {
   onBrush: (x: number, y: number, raise: boolean) => void;
   onReset: () => void;
   onToggleSeq: () => void;
+  onTogglePlay: () => void;
   presetSave: (name: string) => void;
   presetLoad: (name: string) => void;
   presetList: () => string[];
@@ -32,6 +35,9 @@ export class HadoUI {
   canvas: HTMLCanvasElement;
   private root!: HTMLElement;
   private langBtn!: HTMLElement;
+  private performPlay: HTMLElement | null = null;
+  private gateBtns: { opt: string; el: HTMLElement }[] = [];
+  private playing = false;
   private stepEls: HTMLElement[] = [];
   private controls: Refreshable[] = [];
   private meterBar: HTMLElement;
@@ -99,7 +105,7 @@ export class HadoUI {
 
     left.append(panelHost, stage, this.buildSteps());
     tabBtns[0].classList.add("active");
-    panels.GEO.classList.add("active");
+    panels[TABS[0]].classList.add("active");
 
     // right column: macros + meter + presets
     this.meterBar = div("bar");
@@ -109,6 +115,8 @@ export class HadoUI {
   }
 
   private buildPanel(panel: HTMLElement, tab: ParamTab): void {
+    if (tab === "INFO") { this.buildInfo(panel); return; }
+    if (tab === "PERFORM") { this.buildPerform(panel); return; }
     for (const key of Object.keys(PARAMS) as ParamName[]) {
       if (PARAMS[key].tab !== tab) continue;
       const c = makeControl(key, this.state, this.hooks.onParamChange) as Refreshable;
@@ -117,6 +125,116 @@ export class HadoUI {
     }
     if (tab === "IO") this.buildIO(panel);
     if (tab === "SEQ") this.buildSeqExtras(panel);
+  }
+
+  private addControl(panel: HTMLElement, name: ParamName, big: boolean): void {
+    const c = makeControl(name, this.state, this.hooks.onParamChange) as Refreshable;
+    if (big) c.classList.add("big");
+    this.controls.push(c);
+    panel.appendChild(c);
+  }
+
+  private buildPerform(panel: HTMLElement): void {
+    panel.classList.add("perform");
+    const tr = div("perform-transport");
+    this.performPlay = button("play", () => this.hooks.onTogglePlay());
+    this.performPlay.classList.add("big", "play");
+    tr.appendChild(this.performPlay);
+    panel.appendChild(tr);
+
+    if ("gateMode" in PARAMS) {
+      const gm = (PARAMS as Record<string, { options: readonly string[] }>).gateMode;
+      panel.appendChild(header("gateModeLabel"));
+      const wrap = div("perform-gate");
+      this.gateBtns = [];
+      for (const opt of gm.options) {
+        const b = document.createElement("button");
+        b.className = "btn"; b.textContent = opt;
+        b.addEventListener("click", () => { (this.state as Record<string, unknown>).gateMode = opt; this.syncGate(); });
+        wrap.appendChild(b);
+        this.gateBtns.push({ opt, el: b });
+      }
+      panel.appendChild(wrap);
+      this.syncGate();
+    }
+
+    this.addControl(panel, "masterGain", true);
+    for (const m of PERFORM_MACROS) this.addControl(panel, m, true);
+
+    panel.appendChild(this.buildXY("collapseSharpness", "feedAmount"));
+
+    panel.appendChild(header("quickPresets"));
+    const pr = div("perform-presets");
+    for (const nm of this.hooks.presetList().slice(0, 8)) {
+      pr.appendChild(button2(nm, () => { this.hooks.presetLoad(nm); this.syncGate(); }));
+    }
+    panel.appendChild(pr);
+  }
+
+  private buildXY(xName: ParamName, yName: ParamName): HTMLElement {
+    const xp = PARAMS[xName] as { min: number; max: number };
+    const yp = PARAMS[yName] as { min: number; max: number };
+    const pad = div("xypad");
+    const dot = div("xydot");
+    pad.appendChild(dot);
+    const place = (): void => {
+      const x = ((this.state[xName] as number) - xp.min) / (xp.max - xp.min);
+      const y = ((this.state[yName] as number) - yp.min) / (yp.max - yp.min);
+      dot.style.left = `${x * 100}%`;
+      dot.style.bottom = `${y * 100}%`;
+    };
+    place();
+    let drag = false;
+    const move = (e: PointerEvent): void => {
+      if (!drag) return;
+      const r = pad.getBoundingClientRect();
+      const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      const y = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+      this.state[xName] = xp.min + x * (xp.max - xp.min);
+      this.state[yName] = yp.min + y * (yp.max - yp.min);
+      place();
+      this.hooks.onParamChange(xName); this.hooks.onParamChange(yName);
+    };
+    pad.addEventListener("pointerdown", (e) => { drag = true; move(e); });
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", () => { drag = false; });
+    (pad as Refreshable).refresh = place;
+    this.controls.push(pad as Refreshable);
+    const wrap = div("ctl xywrap");
+    const lab = document.createElement("label");
+    const nameSpan = document.createElement("span");
+    const setLab = (): void => { nameSpan.textContent = `XY · ${paramLabel(xName)} / ${paramLabel(yName)}`; };
+    setLab();
+    lab.appendChild(nameSpan);
+    wrap.append(lab, pad);
+    (wrap as Refreshable).relabel = setLab;
+    this.controls.push(wrap as Refreshable);
+    return wrap;
+  }
+
+  private syncGate(): void {
+    for (const g of this.gateBtns) g.el.classList.toggle("active", (this.state as Record<string, unknown>).gateMode === g.opt);
+  }
+
+  private buildInfo(panel: HTMLElement): void {
+    panel.classList.add("info");
+    const title = document.createElement("h4");
+    title.dataset.i18n = "conceptTitle"; title.textContent = t("conceptTitle");
+    const con = div("concept"); con.dataset.i18n = "concept"; con.textContent = t("concept");
+    panel.append(title, con);
+    for (const tab of PARAM_TABS) {
+      panel.appendChild(header("tab." + tab));
+      for (const key of Object.keys(PARAMS) as ParamName[]) {
+        if (PARAMS[key].tab !== tab) continue;
+        const row = div("inforow");
+        const nm = document.createElement("span");
+        nm.className = "in-name"; nm.dataset.i18nParam = key; nm.textContent = paramLabel(key);
+        const ds = document.createElement("span");
+        ds.className = "in-desc"; ds.dataset.i18nDesc = key; ds.textContent = paramDesc(key);
+        row.append(nm, ds);
+        panel.appendChild(row);
+      }
+    }
   }
 
   private buildSeqExtras(panel: HTMLElement): void {
@@ -248,6 +366,13 @@ export class HadoUI {
   setMeter(rms: number): void { this.meterBar.style.width = `${Math.min(100, rms * 300)}%`; }
   setHud(text: string): void { this.hud.textContent = text; }
   setWarn(text: string): void { this.warnEl.textContent = text; }
+  setPlaying(on: boolean): void {
+    this.playing = on;
+    if (this.performPlay) {
+      this.performPlay.textContent = t(on ? "stop" : "play");
+      this.performPlay.classList.toggle("active", on);
+    }
+  }
   setTdStatus(text: string, cls = ""): void { this.tdStatus.textContent = text; this.tdStatus.className = "status " + cls; }
   setStepCursor(i: number): void {
     this.stepEls.forEach((s, k) => s.classList.toggle("cursor", k === i));
@@ -260,7 +385,14 @@ export class HadoUI {
     this.root.querySelectorAll<HTMLInputElement>("[data-i18n-ph]").forEach((el) => {
       el.placeholder = t(el.dataset.i18nPh!);
     });
+    this.root.querySelectorAll<HTMLElement>("[data-i18n-param]").forEach((el) => {
+      el.textContent = paramLabel(el.dataset.i18nParam as ParamName);
+    });
+    this.root.querySelectorAll<HTMLElement>("[data-i18n-desc]").forEach((el) => {
+      el.textContent = paramDesc(el.dataset.i18nDesc as ParamName);
+    });
     for (const c of this.controls) c.relabel?.();
+    this.setPlaying(this.playing);
   }
   refreshMidiDevices(): void {
     const devs = this.hooks.midiDevices();
@@ -283,6 +415,10 @@ export class HadoUI {
 }
 
 function div(cls: string): HTMLElement { const d = document.createElement("div"); d.className = cls; return d; }
+function button2(text: string, on: () => void): HTMLElement {
+  const b = document.createElement("button"); b.className = "btn"; b.textContent = text;
+  b.addEventListener("click", on); return b;
+}
 function button(id: string, on: () => void): HTMLElement {
   const b = document.createElement("button"); b.className = "btn";
   b.dataset.i18n = id; b.textContent = t(id);
