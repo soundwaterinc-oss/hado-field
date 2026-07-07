@@ -3,6 +3,7 @@
 import { PARAMS, type ParamName, type ParamState, type ParamTab } from "../core/params";
 import { makeControl } from "./knob";
 import type { MeasureClock } from "../core/clock";
+import { t, getLang, toggleLang } from "../core/i18n";
 
 const TABS: ParamTab[] = ["GEO", "FIELD", "SOUND", "SEQ", "MUTATE", "IO"];
 const MACROS: ParamName[] = ["droneLevel", "feedAmount", "collapseSharpness", "reverbMix"];
@@ -25,10 +26,12 @@ export interface UIHooks {
   tdDisconnect: () => void;
 }
 
-type Refreshable = HTMLElement & { refresh?: () => void };
+type Refreshable = HTMLElement & { refresh?: () => void; relabel?: () => void };
 
 export class HadoUI {
   canvas: HTMLCanvasElement;
+  private root!: HTMLElement;
+  private langBtn!: HTMLElement;
   private stepEls: HTMLElement[] = [];
   private controls: Refreshable[] = [];
   private meterBar: HTMLElement;
@@ -42,6 +45,7 @@ export class HadoUI {
     root: HTMLElement, private state: ParamState,
     private clock: MeasureClock, private hooks: UIHooks,
   ) {
+    this.root = root;
     root.innerHTML = "";
     const left = div("left");
     const right = div("right");
@@ -72,7 +76,8 @@ export class HadoUI {
       panelHost.appendChild(panel);
 
       const btn = div("tabbtn");
-      btn.textContent = tab;
+      btn.dataset.i18n = "tab." + tab;
+      btn.textContent = t("tab." + tab);
       btn.addEventListener("click", () => {
         for (const b of tabBtns) b.classList.remove("active");
         btn.classList.add("active");
@@ -82,6 +87,15 @@ export class HadoUI {
       tabBtns.push(btn);
       tabsbar.appendChild(btn);
     }
+    // language toggle (shows the language you'd switch to)
+    this.langBtn = div("tabbtn lang");
+    this.langBtn.textContent = getLang() === "EN" ? "日本語" : "EN";
+    this.langBtn.addEventListener("click", () => {
+      toggleLang();
+      this.langBtn.textContent = getLang() === "EN" ? "日本語" : "EN";
+      this.applyLanguage();
+    });
+    tabsbar.appendChild(this.langBtn);
 
     left.append(panelHost, stage, this.buildSteps());
     tabBtns[0].classList.add("active");
@@ -107,21 +121,22 @@ export class HadoUI {
 
   private buildSeqExtras(panel: HTMLElement): void {
     const note = div("status");
-    note.textContent = "Space=play/stop · click canvas=observe · R=reset · F=freeze";
+    note.dataset.i18n = "seqNote";
+    note.textContent = t("seqNote");
     panel.appendChild(note);
   }
 
   private buildIO(panel: HTMLElement): void {
     // MIDI
     const midiWrap = div("ctl");
-    const midiBtn = button("enable midi", () => {
+    const midiBtn = button("enableMidi", () => {
       this.hooks.midiEnable();
       setTimeout(() => this.refreshMidiDevices(), 400);
     });
     this.midiSel = document.createElement("select");
     this.midiSel.className = "enumsel";
     this.midiSel.addEventListener("change", () => this.hooks.midiSelect(this.midiSel.value));
-    midiWrap.append(labelEl("MIDI out"), midiBtn, this.midiSel);
+    midiWrap.append(labelEl("midiOut"), midiBtn, this.midiSel);
     panel.appendChild(midiWrap);
 
     // TD bridge
@@ -135,11 +150,12 @@ export class HadoUI {
     );
     this.tdStatus = div("status");
     this.tdStatus.textContent = "TD: idle (dormant)";
-    tdWrap.append(labelEl("TouchDesigner bridge"), url, row, this.tdStatus);
+    tdWrap.append(labelEl("tdBridge"), url, row, this.tdStatus);
     panel.appendChild(tdWrap);
 
     const ccInfo = div("status");
-    ccInfo.innerHTML = "CC20 rms · CC21 centroid · CC22–29 mode1–8 amp";
+    ccInfo.dataset.i18n = "ccInfo";
+    ccInfo.textContent = t("ccInfo");
     panel.appendChild(ccInfo);
   }
 
@@ -173,29 +189,23 @@ export class HadoUI {
   }
 
   private buildRight(right: HTMLElement): void {
-    const macroHead = document.createElement("h4");
-    macroHead.textContent = "MACROS";
-    right.appendChild(macroHead);
+    right.appendChild(header("macros"));
     for (const m of MACROS) {
       const c = makeControl(m, this.state, this.hooks.onParamChange) as Refreshable;
       this.controls.push(c);
       right.appendChild(c);
     }
-    const meterHead = document.createElement("h4");
-    meterHead.textContent = "OUTPUT";
     const meter = div("meter");
     meter.appendChild(this.meterBar);
-    right.append(meterHead, meter);
+    right.append(header("output"), meter);
 
     // presets
-    const presetHead = document.createElement("h4");
-    presetHead.textContent = "PRESETS";
     this.presetSel = document.createElement("select");
     this.presetSel.className = "enumsel";
     this.refreshPresets();
     this.presetSel.addEventListener("change", () => this.hooks.presetLoad(this.presetSel.value));
     const nameIn = document.createElement("input");
-    nameIn.className = "txt"; nameIn.placeholder = "preset name";
+    nameIn.className = "txt"; nameIn.dataset.i18nPh = "presetName"; nameIn.placeholder = t("presetName");
     const row1 = div("row");
     row1.append(
       button("save", () => { if (nameIn.value) { this.hooks.presetSave(nameIn.value); this.refreshPresets(); } }),
@@ -209,7 +219,7 @@ export class HadoUI {
     });
     const row2 = div("row");
     row2.append(button("import", () => importInput.click()));
-    right.append(presetHead, this.presetSel, nameIn, row1, row2, importInput);
+    right.append(header("presets"), this.presetSel, nameIn, row1, row2, importInput);
   }
 
   private bindCanvas(): void {
@@ -243,6 +253,15 @@ export class HadoUI {
     this.stepEls.forEach((s, k) => s.classList.toggle("cursor", k === i));
   }
   refreshAll(): void { for (const c of this.controls) c.refresh?.(); }
+  applyLanguage(): void {
+    this.root.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => {
+      el.textContent = t(el.dataset.i18n!);
+    });
+    this.root.querySelectorAll<HTMLInputElement>("[data-i18n-ph]").forEach((el) => {
+      el.placeholder = t(el.dataset.i18nPh!);
+    });
+    for (const c of this.controls) c.relabel?.();
+  }
   refreshMidiDevices(): void {
     const devs = this.hooks.midiDevices();
     this.midiSel.innerHTML = "";
@@ -264,10 +283,16 @@ export class HadoUI {
 }
 
 function div(cls: string): HTMLElement { const d = document.createElement("div"); d.className = cls; return d; }
-function button(text: string, on: () => void): HTMLElement {
-  const b = document.createElement("button"); b.className = "btn"; b.textContent = text;
+function button(id: string, on: () => void): HTMLElement {
+  const b = document.createElement("button"); b.className = "btn";
+  b.dataset.i18n = id; b.textContent = t(id);
   b.addEventListener("click", on); return b;
 }
-function labelEl(text: string): HTMLElement {
-  const l = document.createElement("label"); l.innerHTML = `<span>${text}</span>`; return l;
+function labelEl(id: string): HTMLElement {
+  const l = document.createElement("label");
+  const s = document.createElement("span"); s.dataset.i18n = id; s.textContent = t(id);
+  l.appendChild(s); return l;
+}
+function header(id: string): HTMLElement {
+  const h = document.createElement("h4"); h.dataset.i18n = id; h.textContent = t(id); return h;
 }

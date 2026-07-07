@@ -94,6 +94,14 @@ def onReceiveBinary(dat, contents):
 Acceptance (once TD is available): 30 fps JSON + 15 fps binary received, collapse events
 detected within one frame, 60 fps maintained with `sendField` on.
 
+## Background playback & language
+
+- **Keeps evolving in the background** — the field simulation, spectrum extraction,
+  sequencer and audio run off a Web Worker metronome (not `requestAnimationFrame`), so the
+  field and the drone/grains keep going even when the tab is hidden. Open several tabs to
+  layer instances; each keeps running. Rendering pauses when hidden to save GPU.
+- **EN / 日本語** — toggle in the top-right tab bar; all labels switch live (persisted).
+
 ## Extension notes (not implemented)
 
 - **響庭 (resonant garden)**: contact-mic input as a real-time excitation source for `V`.

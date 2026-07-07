@@ -171,32 +171,54 @@ function resize(): void {
 window.addEventListener("resize", resize);
 resize();
 
-// ── main loop ─────────────────────────────────────────────────────────────
-let last = performance.now();
-function frame(now: number): void {
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
+// ── background-resilient logic loop ────────────────────────────────────────
+// Field simulation, spectrum, sequencer and audio run off a Web Worker metronome, NOT
+// rAF, so the field keeps evolving (and the drone/grains keep updating) when the tab is
+// hidden — rAF is throttled to a stop in background. rAF is used only for rendering.
+const workerSrc =
+  "let ms=16,t=null;onmessage=e=>{const d=e.data;" +
+  "if(d.cmd==='config')ms=d.ms;" +
+  "else if(d.cmd==='next')t=setTimeout(()=>postMessage(0),ms);" +
+  "else if(d.cmd==='stop'){clearTimeout(t);t=null;}};";
+const clockWorker = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: "application/javascript" })));
 
-  field.step(state, potential.vmax);
-  spectrum.accumulate(field);
+let lastLogic = performance.now();
+function logic(): void {
+  const now = performance.now();
+  let dt = (now - lastLogic) / 1000;
+  lastLogic = now;
+  dt = Math.min(0.5, dt);
+  // catch-up sim frames so the field keeps advancing under background timer throttling
+  const frames = Math.max(1, Math.min(4, Math.round(dt / 0.016)));
+  for (let k = 0; k < frames; k++) {
+    field.step(state, potential.vmax);
+    spectrum.accumulate(field);
+  }
   features.t = now / 1000;
   features.modes = spectrum.update(now, state.modeCount as number, state.fRoot as number, state.warp as number);
   probes.sample(field, features.probes);
 
   clock.tick(dt, state);
-
   audio.update(dt, features, state, now);
   mutator.update(dt, features.analysis, state);
-
   midi.sendCC(features, state, now);
   td.sendState(features, state, now);
   td.sendField(field.reducedData, state, now);
+}
+clockWorker.onmessage = () => {
+  try { logic(); } catch (err) { console.error(err); }
+  clockWorker.postMessage({ cmd: "next" });
+};
+clockWorker.postMessage({ cmd: "next" });
+document.addEventListener("visibilitychange", () => {
+  clockWorker.postMessage({ cmd: "config", ms: document.hidden ? 80 : 16 });
+});
 
+// ── render loop (visuals only; auto-pauses when the tab is hidden) ──────────
+function frame(): void {
   field.render(state, ui.canvas.width, ui.canvas.height);
-
   ui.setMeter(features.analysis.rms);
   ui.setHud(`${field.gridSize}² · modes ${features.modes.length} · ${clock.running ? "▶" : "■"}${state.freeze ? " · FROZEN" : ""}`);
-
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

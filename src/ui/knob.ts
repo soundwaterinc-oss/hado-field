@@ -1,8 +1,10 @@
 // knob.ts — one control per param. Number = vertical-drag knob; enum = select;
 // bool = toggle. Double-click a knob resets to default.
 import { PARAMS, type ParamName, type ParamState } from "../core/params";
+import { paramLabel } from "../core/i18n";
 
 export type OnChange = (name: ParamName) => void;
+type Labelled = HTMLElement & { relabel?: () => void };
 
 export function makeControl(name: ParamName, state: ParamState, onChange: OnChange): HTMLElement {
   const def = PARAMS[name];
@@ -22,10 +24,11 @@ function numberKnob(name: ParamName, state: ParamState, onChange: OnChange): HTM
   const wrap = document.createElement("div");
   wrap.className = "ctl";
   const label = document.createElement("label");
+  const nameSpan = document.createElement("span");
+  nameSpan.textContent = paramLabel(name);
   const val = document.createElement("span");
   val.className = "v";
-  label.innerHTML = `<span>${def.label}</span>`;
-  label.appendChild(val);
+  label.append(nameSpan, val);
   const knob = document.createElement("div");
   knob.className = "knob";
   const fill = document.createElement("div");
@@ -60,7 +63,9 @@ function numberKnob(name: ParamName, state: ParamState, onChange: OnChange): HTM
   });
   knob.addEventListener("dblclick", () => { state[name] = def.def; refresh(); onChange(name); });
   wrap.title = name;
-  (wrap as HTMLElement & { refresh?: () => void }).refresh = refresh;
+  const w = wrap as Labelled & { refresh?: () => void };
+  w.refresh = refresh;
+  w.relabel = () => { nameSpan.textContent = paramLabel(name); };
   return wrap;
 }
 
@@ -70,7 +75,9 @@ function enumSelect(name: ParamName, state: ParamState, onChange: OnChange): HTM
   const wrap = document.createElement("div");
   wrap.className = "ctl";
   const label = document.createElement("label");
-  label.innerHTML = `<span>${def.label}</span>`;
+  const nameSpan = document.createElement("span");
+  nameSpan.textContent = paramLabel(name);
+  label.appendChild(nameSpan);
   const sel = document.createElement("select");
   sel.className = "enumsel";
   for (const o of def.options) {
@@ -81,21 +88,27 @@ function enumSelect(name: ParamName, state: ParamState, onChange: OnChange): HTM
   sel.value = state[name] as string;
   sel.addEventListener("change", () => { state[name] = sel.value; onChange(name); });
   wrap.append(label, sel);
-  (wrap as HTMLElement & { refresh?: () => void }).refresh = () => { sel.value = state[name] as string; };
+  const w = wrap as Labelled & { refresh?: () => void };
+  w.refresh = () => { sel.value = state[name] as string; };
+  w.relabel = () => { nameSpan.textContent = paramLabel(name); };
   return wrap;
 }
 
 function boolToggle(name: ParamName, state: ParamState, onChange: OnChange): HTMLElement {
-  const def = PARAMS[name];
   const wrap = document.createElement("div");
   wrap.className = "ctl";
   const btn = document.createElement("div");
   btn.className = "bool";
-  btn.innerHTML = `<div class="box"></div><span>${def.label}</span>`;
+  const box = document.createElement("div"); box.className = "box";
+  const nameSpan = document.createElement("span");
+  nameSpan.textContent = paramLabel(name);
+  btn.append(box, nameSpan);
   const refresh = (): void => { btn.classList.toggle("on", state[name] as boolean); };
   refresh();
   btn.addEventListener("click", () => { state[name] = !(state[name] as boolean); refresh(); onChange(name); });
   wrap.appendChild(btn);
-  (wrap as HTMLElement & { refresh?: () => void }).refresh = refresh;
+  const w = wrap as Labelled & { refresh?: () => void };
+  w.refresh = refresh;
+  w.relabel = () => { nameSpan.textContent = paramLabel(name); };
   return wrap;
 }

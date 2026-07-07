@@ -26,6 +26,7 @@ body {
   border-radius: 4px; letter-spacing: 1px; font-size: 11px;
 }
 .tabbtn.active { color: var(--accent); border-color: var(--accent-dim); background: #10161a; }
+.tabbtn.lang { flex: 0 0 auto; min-width: 52px; color: var(--accent); }
 
 .stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; background: #060708; min-height: 0; }
 #glcanvas { display: block; background: #000; box-shadow: 0 0 40px #000 inset; cursor: crosshair; }
