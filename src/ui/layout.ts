@@ -67,7 +67,7 @@ export class HadoUI {
 
     // panels (built per tab, hidden over the stage area as overlays via tab switch)
     const panelHost = div("panelhost");
-    panelHost.style.cssText = "flex:0 0 auto;max-height:38vh;overflow:hidden;";
+    panelHost.style.cssText = "flex:0 0 auto;max-height:40vh;overflow-y:auto;";
     for (const tab of TABS) {
       const panel = document.createElement("div");
       panel.className = "panel" + (tab === "IO" ? " io" : tab === "MUTATE" ? " mutate" : "");
