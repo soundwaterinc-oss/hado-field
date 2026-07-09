@@ -1,4 +1,5 @@
 // params.ts — single source of truth for all parameters (drives UI, preset, TD send)
+import { SCALE_IDS } from "../audio/scales";
 export type ParamTab = "PERFORM" | "GEO" | "FIELD" | "SOUND" | "SEQ" | "MUTATE" | "IO" | "INFO";
 
 export interface NumberParam {
@@ -103,7 +104,7 @@ export const PARAMS = {
   measureMode: e("SEQ", "measure mode", ["STEP", "POISSON", "MIX"], "STEP"),
   poissonRate: n("SEQ", "poisson rate", 0.2, 8, 1, 0.1, "Hz"),
   poissonAmount: n("SEQ", "poisson amt", 0, 1, 0, 0.01),
-  scaleQuantize: e("SEQ", "scale", ["chromatic", "penta", "just", "gamelan"], "penta"),
+  scaleQuantize: e("SEQ", "scale", SCALE_IDS, "penta"),
   transpose: n("SEQ", "transpose", -24, 24, 0, 1),
 
   // ── MUTATE ───────────────────────────────────────────────────────────
