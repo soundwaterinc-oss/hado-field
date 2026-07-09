@@ -46,6 +46,22 @@ const TABLES: Record<string, number[]> = {
 
 export const SCALE_IDS = Object.keys(TABLES);
 
+// display labels with place/region (dropdown text only; the value stays the id).
+export const SCALE_LABELS: Record<string, string> = {
+  chromatic: "Chromatic", major: "Major (West)", minor: "Minor (West)", dorian: "Dorian (West)",
+  phrygian: "Phrygian (West)", lydian: "Lydian (West)", mixolydian: "Mixolydian (West)",
+  harmonicMinor: "Harmonic minor (West)", melodicMinor: "Melodic minor (West)",
+  penta: "Major pentatonic", minorPent: "Minor pentatonic", blues: "Blues (USA)",
+  wholeTone: "Whole tone", just: "Just major (West)",
+  ryukyu: "Ryukyu (Okinawa)", yo: "Yo (Japan)", insen: "Insen (Japan)", hirajoshi: "Hirajoshi (Japan)",
+  iwato: "Iwato (Japan)", kumoi: "Kumoi (Japan)",
+  bhairav: "Bhairav (India)", yaman: "Yaman (India)", todi: "Todi (India)", bhairavi: "Bhairavi (India)",
+  rast: "Rast (Arab/Türkiye)", hijaz: "Hijaz (Arab)", bayati: "Bayati (Arab)", saba: "Saba (Arab)",
+  slendro: "Slendro (Java)", gamelan: "Gamelan (Bali/Java)", pelog: "Pelog (Java)",
+  tizita: "Tizita (Ethiopia)", hungarianMinor: "Hungarian minor (Hungary)",
+  doubleHarmonic: "Double harmonic (Byzantium)", phrygianDom: "Phrygian dominant (Andalucía)",
+};
+
 // Quantise a frequency to the nearest scale degree, then transpose semitones.
 export function scaleQuantize(freq: number, scale: string, transpose: number): number {
   const table = TABLES[scale] ?? TABLES.penta;

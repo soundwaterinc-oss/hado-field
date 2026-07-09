@@ -163,3 +163,25 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 export function t(id: string): string {
   return STRINGS[current][id] ?? STRINGS.EN[id] ?? id;
 }
+
+// Scale option labels in kana (shown when JP); EN uses the roman labels passed in.
+const SCALE_JA: Record<string, string> = {
+  chromatic: "クロマチック", major: "メジャー（セイヨウ）", minor: "マイナー（セイヨウ）",
+  dorian: "ドリアン（セイヨウ）", phrygian: "フリジアン（セイヨウ）", lydian: "リディアン（セイヨウ）",
+  mixolydian: "ミクソリディアン（セイヨウ）", harmonicMinor: "ハーモニックマイナー（セイヨウ）",
+  melodicMinor: "メロディックマイナー（セイヨウ）", penta: "メジャーペンタ", minorPent: "マイナーペンタ",
+  blues: "ブルース（アメリカ）", wholeTone: "ホールトーン", just: "ジャストメジャー（セイヨウ）",
+  ryukyu: "リュウキュウ（オキナワ）", yo: "ヨ（ニホン）", insen: "インセン（ニホン）",
+  hirajoshi: "ヒラジョウシ（ニホン）", iwato: "イワト（ニホン）", kumoi: "クモイ（ニホン）",
+  bhairav: "バイラヴ（インド）", yaman: "ヤマン（インド）", todi: "トーディ（インド）", bhairavi: "バイラヴィ（インド）",
+  rast: "ラースト（アラブ／トルコ）", hijaz: "ヒジャーズ（アラブ）", bayati: "バヤーティ（アラブ）", saba: "サバー（アラブ）",
+  slendro: "スレンドロ（ジャワ）", gamelan: "ガムラン（バリ／ジャワ）", pelog: "ペロッグ（ジャワ）",
+  tizita: "ティザータ（エチオピア）", hungarianMinor: "ハンガリアンマイナー（ハンガリー）",
+  doubleHarmonic: "ダブルハーモニック（ビザンチン）", phrygianDom: "フリジアンドミナント（アンダルシア）",
+};
+
+// resolve an enum option's display text: JP kana if available, else the (roman) label, else the id.
+export function enumOptionLabel(id: string, enLabels?: Record<string, string>): string {
+  if (current === "JP") return SCALE_JA[id] ?? enLabels?.[id] ?? id;
+  return enLabels?.[id] ?? id;
+}

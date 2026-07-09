@@ -1,7 +1,7 @@
 // knob.ts — one control per param. Number = vertical-drag knob; enum = select;
 // bool = toggle. Double-click a knob resets to default.
 import { PARAMS, type ParamName, type ParamState } from "../core/params";
-import { paramLabel } from "../core/i18n";
+import { paramLabel, enumOptionLabel } from "../core/i18n";
 
 export type OnChange = (name: ParamName) => void;
 type Labelled = HTMLElement & { relabel?: () => void };
@@ -80,17 +80,21 @@ function enumSelect(name: ParamName, state: ParamState, onChange: OnChange): HTM
   label.appendChild(nameSpan);
   const sel = document.createElement("select");
   sel.className = "enumsel";
+  const opts: HTMLOptionElement[] = [];
   for (const o of def.options) {
     const opt = document.createElement("option");
-    opt.value = o; opt.textContent = o;
-    sel.appendChild(opt);
+    opt.value = o; opt.textContent = enumOptionLabel(o, def.labels);
+    sel.appendChild(opt); opts.push(opt);
   }
   sel.value = state[name] as string;
   sel.addEventListener("change", () => { state[name] = sel.value; onChange(name); });
   wrap.append(label, sel);
   const w = wrap as Labelled & { refresh?: () => void };
   w.refresh = () => { sel.value = state[name] as string; };
-  w.relabel = () => { nameSpan.textContent = paramLabel(name); };
+  w.relabel = () => {
+    nameSpan.textContent = paramLabel(name);
+    for (const opt of opts) opt.textContent = enumOptionLabel(opt.value, def.labels);
+  };
   return wrap;
 }
 
