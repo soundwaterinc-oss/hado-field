@@ -13,8 +13,8 @@ export class AudioEngine {
   readonly mid: MidCollapse;
   readonly micro: MicroGrain;
   readonly analyser: Analyser;
+  readonly masterOut: GainNode;
   private fx: FxChain;
-  private master: GainNode;
   private busMacro: GainNode;
   private busMid: GainNode;
   private busMicro: GainNode;
@@ -25,8 +25,8 @@ export class AudioEngine {
 
   constructor() {
     this.ctx = new AudioContext({ sampleRate: 48000, latencyHint: "interactive" });
-    this.master = this.ctx.createGain();
-    this.master.gain.value = 0.9;
+    this.masterOut = this.ctx.createGain();
+    this.masterOut.gain.value = 0.9;
     this.fx = new FxChain(this.ctx);
     this.analyser = new Analyser(this.ctx);
 
@@ -41,12 +41,12 @@ export class AudioEngine {
     for (const [bus, send] of [
       [this.busMacro, this.sendMacro], [this.busMid, this.sendMid], [this.busMicro, this.sendMicro],
     ] as [GainNode, GainNode][]) {
-      bus.connect(this.master);       // dry path
+      bus.connect(this.masterOut);    // dry path
       bus.connect(send);              // fx send
       send.connect(this.fx.input);
     }
-    this.fx.output.connect(this.master);
-    this.master.connect(this.analyser.input);
+    this.fx.output.connect(this.masterOut);
+    this.masterOut.connect(this.analyser.input);
     this.analyser.input.connect(this.ctx.destination);
 
     this.macro = new MacroDrone(this.ctx, this.busMacro);
@@ -62,7 +62,7 @@ export class AudioEngine {
   // per-frame parameter + feature push
   update(dt: number, features: HadoFeatures, p: ParamState, nowMs: number): void {
     if (!this.started) return;
-    this.master.gain.setTargetAtTime(p.masterGain as number, this.ctx.currentTime, 0.02);
+    this.masterOut.gain.setTargetAtTime(p.masterGain as number, this.ctx.currentTime, 0.02);
     this.fx.update(p);
     this.sendMacro.gain.value = p.fxSendMacro as number;
     this.sendMid.gain.value = p.fxSendMid as number;

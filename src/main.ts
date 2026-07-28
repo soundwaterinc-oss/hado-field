@@ -1,6 +1,6 @@
 // main.ts — startup + rAF loop. Wires field ⇄ features ⇄ audio/io, geometry, feedback, UI.
 import "./ui/style.css";
-import { defaultState, defaultSettings, type ParamName } from "./core/params";
+import { PARAMS, defaultState, defaultSettings, type ParamName } from "./core/params";
 import { features } from "./core/features";
 import { MeasureClock } from "./core/clock";
 import {
@@ -17,9 +17,26 @@ import { MidiOut } from "./io/midi";
 import { TdBridge } from "./io/tdBridge";
 import { HadoUI, type UIHooks } from "./ui/layout";
 
+declare global {
+  interface Window {
+    registerElSystemaInstrument?: (config: {
+      id: string;
+      audioContext?: AudioContext;
+      outputNode?: AudioNode;
+      sharedAnalyser?: AnalyserNode;
+      onPlay?: () => void;
+      onStop?: () => void;
+      onSetParam?: (name: string, value: number) => void;
+      onLoadPreset?: (preset: Record<string, unknown>) => void;
+      onSnapshot?: () => Record<string, unknown>;
+    }) => unknown;
+  }
+}
+
 const state = defaultState();
 const settings = defaultSettings();
 const clock = new MeasureClock();
+const FIELD_ON = /[?&#]field/.test(location.href);
 
 // forward declarations assigned after UI creates the canvas
 let field: QuantumField;
@@ -30,6 +47,20 @@ const audio = new AudioEngine();
 const mutator = new Mutator();
 const midi = new MidiOut();
 const td = new TdBridge();
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function lerp(min: number, max: number, t: number): number {
+  return min + (max - min) * clamp01(t);
+}
+
+function setNumberParam(name: ParamName, value: number): void {
+  const def = PARAMS[name];
+  if (def.kind !== "number") return;
+  state[name] = Math.min(def.max, Math.max(def.min, value));
+}
 
 function rebakeGeometry(): void {
   field.uploadV(potential.bake(state));
@@ -90,6 +121,101 @@ const GEO_PARAMS = new Set<ParamName>([
   "wallHeight", "geoMix",
 ]);
 
+function applyParams(patch: Partial<Record<ParamName, number | string | boolean>>): void {
+  let needsRebake = false;
+  let needsRelayout = false;
+  for (const key of Object.keys(patch) as ParamName[]) {
+    if (!(key in PARAMS)) continue;
+    const def = PARAMS[key];
+    const value = patch[key];
+    if (value === undefined) continue;
+    if (def.kind === "number" && typeof value === "number") {
+      state[key] = Math.min(def.max, Math.max(def.min, value));
+    } else if (def.kind === "bool" && typeof value === "boolean") {
+      state[key] = value;
+    } else if (def.kind === "enum" && typeof value === "string" && def.options.includes(value)) {
+      state[key] = value;
+    } else {
+      continue;
+    }
+    if (GEO_PARAMS.has(key)) needsRebake = true;
+    if (key === "probeCount") needsRelayout = true;
+  }
+  ui.refreshAll();
+  if (needsRebake) rebakeGeometry();
+  if (needsRelayout) relayoutProbes();
+}
+
+function snapshotState(): Record<string, unknown> {
+  return { ...state };
+}
+
+function loadSnapshot(preset: Record<string, unknown>): void {
+  const src = preset && typeof preset === "object" && preset.params && typeof preset.params === "object"
+    ? preset.params as Record<string, unknown>
+    : preset;
+  applyParams(src as Partial<Record<ParamName, number | string | boolean>>);
+}
+
+function elsysMacro(name: string, value: number): void {
+  const v = clamp01(value);
+  switch (name) {
+    case "macro.a":
+      applyParams({
+        collapseSharpness: lerp(0.02, 0.12, v),
+        strikeLevel: lerp(0.18, 0.95, v),
+        grainDensity: lerp(6, 48, v),
+        poissonAmount: lerp(0, 0.9, v),
+      });
+      break;
+    case "macro.b":
+      applyParams({
+        wellDepth: lerp(0.2, 0.98, v),
+        wellRadius: lerp(0.012, 0.082, v),
+        geoMix: lerp(0, 1, v),
+        gamma: lerp(0.4, 1.2, v),
+      });
+      break;
+    case "macro.c":
+      applyParams({
+        droneLevel: lerp(0.08, 0.85, v),
+        grainLevel: lerp(0.05, 0.7, v),
+        reverbMix: lerp(0.06, 0.58, v),
+        drive: lerp(0, 0.55, v),
+        warp: lerp(0.45, 1.4, v),
+      });
+      break;
+    case "volume":
+      setNumberParam("masterGain", v);
+      ui.refreshAll();
+      break;
+    default:
+      break;
+  }
+}
+
+function registerFieldBridge(): void {
+  if (!FIELD_ON || typeof window.registerElSystemaInstrument !== "function") return;
+  window.registerElSystemaInstrument({
+    id: "hado-field",
+    audioContext: audio.ctx,
+    outputNode: audio.masterOut,
+    sharedAnalyser: audio.analyser.input,
+    onPlay: () => {
+      void audio.resume();
+      clock.toggle(true);
+      ui.setPlaying(true);
+    },
+    onStop: () => {
+      clock.toggle(false);
+      ui.setPlaying(false);
+    },
+    onSetParam: (name, value) => elsysMacro(name, value),
+    onLoadPreset: (preset) => loadSnapshot(preset),
+    onSnapshot: () => snapshotState(),
+  });
+}
+
 const hooks: UIHooks = {
   onParamChange: (name) => {
     if (GEO_PARAMS.has(name)) rebakeGeometry();
@@ -145,6 +271,7 @@ clock.onMeasure = () => { const [x, y] = cdfSample(); observe(x, y); };
 mutator.onRebake = () => rebakeGeometry();
 mutator.onWarn = (m) => ui.setWarn(m);
 td.onStatus = (s) => ui.setTdStatus(`TD: ${s}`, s === "open" ? "ok" : s === "error" ? "err" : "");
+registerFieldBridge();
 
 // resume audio on first interaction
 const kickAudio = (): void => { void audio.resume(); };
